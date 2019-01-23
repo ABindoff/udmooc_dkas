@@ -1,0 +1,157 @@
+---
+title: "DKAS, multilevel linear regression 2016 & 2017 Statistical Appendix - SUPPLEMENTARY MATERIALS"
+author: "Bindoff, A., Eccleston, C."
+output:
+  word_document: default
+  html_document: default
+---
+
+`r Sys.Date()`
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = F, message = F)
+options(width = 100)
+```
+
+```{r, warning = F, message = F}
+# libraries can be installed by running the command install.packages(c("dplyr", "lme4", "lsmeans", "lmerTest", "foreign", "ggplot2", "reshape2"))
+
+library(lme4)
+library(ggplot2)
+library(foreign)
+library(reshape2)
+library(dplyr)
+library(knitr)
+library(xtable)
+library(latticeExtra)
+library(optimx)
+library(lmerTest)
+library(grid)
+```
+
+
+Data for 2016 and 2017 were cleaned, checked for duplicate subject IDs, and converted to long-form for repeated-measures analysis. Special attention was paid to ensuring that only pre-test scores that were submitted before the participant had accessed MOOC content and only post-test scores that were submitted after the participant had completed all 3 units of the MOOC were included in the analysis. Incomplete cases were discarded.  
+
+
+```{r, eval = T, echo = FALSE}
+
+setwd("../claire_eccleston/")
+df <- read.spss("for Aidan 2.sav", to.data.frame = T, trim.factor.names = T)
+names(df) <- tolower(names(df))  # changes column names to lowercase because my working memory is not strongly verbal
+df$pre <- as.double(df$predkassum25) 
+df$post <- as.double(df$postdkassum25)
+
+# put in long (case) form for repeated measures analysis
+df0 <- dplyr::select(df, subjectid, education, exposure, pre, post) %>%
+  melt(value.name = "score", variable.name = "time",
+       id.var = c("subjectid", "education", "exposure"))
+
+df0$year <- 2016
+
+load("DKAS_2017.RData")
+df1$education <- factor(df1$education)
+df1$exposure <- factor(df1$exposure)
+if(any(df0$subjectid %in% df1$subjectid)){print("DUPLICATE SUJECT IDs in 2016 and 2017")}
+```
+
+```{r}
+df0 <- rbind(df0, df1) %>% arrange(subjectid)
+df0$year <- factor(df0$year)
+```
+
+
+
+```{r, eval = T}
+df0 <- filter(df0, education != "Other completed education")
+df0$education <- factor(df0$education)
+```
+
+### Density ridge plots
+ 
+ 
+```{r, eval = T, echo = F}
+library(ggplot2)
+library(ggridges)
+library(viridis)
+ggplot(df0, aes(x = score, y = education, fill = factor(..quantile..))) +
+    stat_density_ridges(geom = "density_ridges_gradient",
+                          calc_ecdf = T,
+                          quantiles = c(0.025, 0.5,  0.975),
+                          alpha = 3/4) +
+      scale_fill_viridis(discrete = TRUE, name = "Quantiles", alpha = 1/2) +
+      facet_wrap(~time)
+  
+ 
+
+ggplot(df0, aes(x = score, y = exposure, fill = factor(..quantile..))) + 
+  stat_density_ridges(geom = "density_ridges_gradient",
+                          calc_ecdf = T,
+                          quantiles = c(0.025, 0.5,  0.975),
+                          alpha = 3/4) +
+      scale_fill_viridis(discrete = TRUE, name = "Quantiles", alpha = 1/2) +
+      facet_wrap(~time)
+```
+
+
+Fit a linear mixed effects model and check normality of residuals with q-q plot  
+
+
+```{r, eval = T, echo = TRUE, fig.height = 3, fig.width = 3.5}
+m1 <- lmer(score ~ 0 + education + time + exposure + exposure:time + (1|subjectid) + (1|year), df0)
+
+qqnorm(resid(m1))
+qqline(resid(m1))
+
+```
+
+
+### F-table for linear model
+
+F statistics and degrees of freedom were estimated using the Kenward-Roger approximation for Type III sums of squares implemented in the `pbkr` R package [1]. This provides a conservative estimate for mixed effects models with acceptable Type 1 error rates [2].
+
+1. Ulrich Halekoh, S?ren H?jsgaard (2014). A Kenward-Roger Approximation and Parametric Bootstrap Methods for Tests
+  in Linear Mixed Models - The R Package pbkrtest. Journal of Statistical Software, 59(9), 1-30. URL
+  http://www.jstatsoft.org/v59/i09/
+2. Luke, S. G. (2017). Evaluating significance in linear mixed-effects models in R. Behavior Research Methods, 49(4),          1494-1502.
+
+```{r, eval = F, echo = TRUE}
+anova(m1, ddf = "Kenward-Roger")
+summary(m1)
+```
+
+### Estimate 95% CIs with semi-parametric bootstrapping
+
+As evidenced by density and Q-Q plots above, the assumptions of normality of residuals and homogeneity of variance have been violated. Because of these violations and the variance attributable to random effects, a bootstrapping procedure was used to estimate 95% confidence intervals.  
+
+```{r confint, eval = F, echo = T}
+
+df_pred <- expand.grid(education = levels(df0$education),
+                       exposure = levels(df0$exposure),
+                       time = levels(df0$time))
+
+bootfit <- bootMer(m1, FUN=function(x) predict(x, df_pred, re.form = NA),
+                   nsim = 10000,
+                   use.u = TRUE,
+                   type = "semiparametric",
+                   parallel = "multicore",
+                   ncpus = 3L)
+df_pred$lwr <- apply(bootfit$t, 2, quantile, 0.025)
+df_pred$upr <- apply(bootfit$t, 2, quantile, 0.975)
+df_pred$fit <- apply(bootfit$t, 2, mean)
+```
+
+
+Mean and 95% CI for time variable (averaged over education and exposure) and pairwise comparisons were calculated using a least-squares means approach.  
+
+```{r, eval = F, echo = TRUE}
+detach(package:lmerTest, unload = T)
+library(lsmeans)
+
+k <- lsmeans(m1, list(revpairwise ~ exposure|time))
+summary(k, type = "response")
+lsmeans(m1, "time")
+
+```
+
+
