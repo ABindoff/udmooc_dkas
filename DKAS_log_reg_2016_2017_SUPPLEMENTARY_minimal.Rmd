@@ -2,8 +2,7 @@
 title: "DKAS, multilevel logistic regression - 2016 & 2017 UD MOOCs"
 author: "Bindoff, A., Eccleston, C."
 output:
-  word_document: default
-  html_document: default
+  github_document: default
 ---
 
 `r Sys.Date()`
@@ -35,46 +34,8 @@ library(viridis)
 A dummy variable was code denoting scores >=45, being the 90th percentile score at pre-test.  
 
 
-```{r, eval = T}
-setwd("../claire_eccleston/")
-df <- read.spss("for Aidan 2.sav", to.data.frame = T, trim.factor.names = T)
-names(df) <- tolower(names(df))  # changes column names to lowercase because my working memory is not strongly verbal
-df$pre <- as.double(df$predkassum25) 
-df$post <- as.double(df$postdkassum25)
-
-# put in long (case) form for repeated measures analysis
-df0 <- dplyr::select(df, subjectid, education, exposure, pre, post) %>%
-  melt(value.name = "score", variable.name = "time",
-       id.var = c("subjectid", "education", "exposure"))
-
-df0$year <- 2016
-
-load("DKAS_2017.RData")
-df1$education <- factor(df1$education)
-df1$exposure <- factor(df1$exposure)
-if(any(df0$subjectid %in% df1$subjectid)){print("DUPLICATE SUJECT IDs in 2016 and 2017")}
-```
-
-```{r, eval = T}
-df0 <- rbind(df0, df1) %>% arrange(subjectid)
-df0$year <- factor(df0$year)
-```
-
-
-
-```{r, eval = T}
-
-df0 <- filter(df0, education != "Other completed education")
-df0$education <- factor(df0$education)
-q <- quantile(filter(df0, time == "pre")$score, 0.90)
-
-df0$raw_score <- df0$score
-df0$score <- df0$score >=q
-df0$score <- as.integer(df0$score)
-#save(df0, file = "dkas_long_2016_2017.RData")
-```
 ```{r}
-#load("dkas_long_2016_2017.RData")
+load("dkas_2016_2017")
 ```
   
   
@@ -90,6 +51,7 @@ Fit the logistic regression model, obtain p-values using a likelihood-ratio test
 
 ```{r, eval = T, echo = T}
 library(optimx)
+df0$score <- df0$raw_score >= 45 
 m2 <- glmer(score ~ time + education + exposure + exposure:time +
               (1|subjectid) + (1|year), data = df0,
              family = binomial(link = logit), 

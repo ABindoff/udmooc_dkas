@@ -2,8 +2,7 @@
 title: "DKAS, multilevel linear regression 2016 & 2017 Statistical Appendix - SUPPLEMENTARY MATERIALS"
 author: "Bindoff, A., Eccleston, C."
 output:
-  word_document: default
-  html_document: default
+  github_document: default
 ---
 
 `r Sys.Date()`
@@ -34,7 +33,7 @@ library(grid)
 Data for 2016 and 2017 were cleaned, checked for duplicate subject IDs, and converted to long-form for repeated-measures analysis. Special attention was paid to ensuring that only pre-test scores that were submitted before the participant had accessed MOOC content and only post-test scores that were submitted after the participant had completed all 3 units of the MOOC were included in the analysis. Incomplete cases were discarded.  
 
 
-```{r, eval = T, echo = FALSE}
+```{r, eval = FALSE, echo = FALSE}
 
 setwd("../claire_eccleston/")
 df <- read.spss("for Aidan 2.sav", to.data.frame = T, trim.factor.names = T)
@@ -53,22 +52,21 @@ load("DKAS_2017.RData")
 df1$education <- factor(df1$education)
 df1$exposure <- factor(df1$exposure)
 if(any(df0$subjectid %in% df1$subjectid)){print("DUPLICATE SUJECT IDs in 2016 and 2017")}
+
+df0 <- rbind(df0, df1) %>% arrange(subjectid)
+df0$year <- factor(df0$year)
+
+df0 <- filter(df0, education != "Other completed education")
+df0$education <- factor(df0$education)
+#save(df0, file = "dkas_2016_2017")
 ```
 
 ```{r}
-df0 <- rbind(df0, df1) %>% arrange(subjectid)
-df0$year <- factor(df0$year)
-```
-
-
-
-```{r, eval = T}
-df0 <- filter(df0, education != "Other completed education")
-df0$education <- factor(df0$education)
+# load previously cleaned data which is provided as open data
+load("dkas_2016_2017")
 ```
 
 ### Density ridge plots
- 
  
 ```{r, eval = T, echo = F}
 library(ggplot2)
@@ -115,7 +113,7 @@ F statistics and degrees of freedom were estimated using the Kenward-Roger appro
   http://www.jstatsoft.org/v59/i09/
 2. Luke, S. G. (2017). Evaluating significance in linear mixed-effects models in R. Behavior Research Methods, 49(4),          1494-1502.
 
-```{r, eval = F, echo = TRUE}
+```{r, eval = TRUE, echo = TRUE}
 anova(m1, ddf = "Kenward-Roger")
 summary(m1)
 ```
@@ -124,7 +122,7 @@ summary(m1)
 
 As evidenced by density and Q-Q plots above, the assumptions of normality of residuals and homogeneity of variance have been violated. Because of these violations and the variance attributable to random effects, a bootstrapping procedure was used to estimate 95% confidence intervals.  
 
-```{r confint, eval = F, echo = T}
+```{r confint, eval = TRUE, echo = TRUE}
 
 df_pred <- expand.grid(education = levels(df0$education),
                        exposure = levels(df0$exposure),
@@ -141,10 +139,14 @@ df_pred$upr <- apply(bootfit$t, 2, quantile, 0.975)
 df_pred$fit <- apply(bootfit$t, 2, mean)
 ```
 
+```{r, echo = FALSE}
+df_pred
+```
+
 
 Mean and 95% CI for time variable (averaged over education and exposure) and pairwise comparisons were calculated using a least-squares means approach.  
 
-```{r, eval = F, echo = TRUE}
+```{r, eval = TRUE, echo = TRUE}
 detach(package:lmerTest, unload = T)
 library(lsmeans)
 
