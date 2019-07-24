@@ -1,0 +1,20 @@
+---
+title: "standardised mean difference"
+author: "Bindoff, A."
+date: "24/07/2019"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+```
+
+```{r}
+library(dplyr)
+load("dkas_2016_2017")
+
+library(tableone)
+smd <- CreateTableOne(vars = c('score'), strata = 'time', data = df0)
+print(smd, smd = TRUE)
+
+```
